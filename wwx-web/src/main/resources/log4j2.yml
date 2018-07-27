@@ -1,0 +1,43 @@
+Configuration:
+  status: info
+  monitorInterval: 30
+  properties:
+    property:
+        name: log.path
+        value: /mnt/logs/aftersale-order-center
+  Appenders:
+    RollingFile:
+     - name: error_file
+       fileName: ${log.path}/error.log
+       filePattern: "${log.path}/error_%d{yyyy-MM-dd}.log"
+       PatternLayout:
+         Pattern: "%-d{yyyy-MM-dd HH:mm:ss} - [%p] [%C{1}:%L %M] %m%n"
+       Policies:
+         TimeBasedTriggeringPolicy:
+           interval: 1
+           modulate: true
+     - name: bus_file
+       fileName: ${log.path}/bus.log
+       filePattern: "${log.path}/bus_%d{yyyy-MM-dd}.log"
+       PatternLayout:
+         Pattern: "%-d{yyyy-MM-dd HH:mm:ss} - [%p] [%C{1}:%L %M] %m%n"
+       Policies:
+         TimeBasedTriggeringPolicy:
+           interval: 1
+           modulate: true
+    Console:
+      name: console
+      target: SYSTEM_OUT
+      PatternLayout:
+        Pattern: "%-d{yyyy-MM-dd HH:mm:ss} - [%p] [%C{1}:%L %M] %m%n"
+  Loggers:
+    Root:
+      level: info
+      AppenderRef:
+        -  ref: console
+    Logger:
+        -  name: ERROR_LOGGER
+           additivity: false
+           level: error
+           AppenderRef:
+            - ref: console

@@ -1,0 +1,30 @@
+spring:
+  boot:
+    admin:
+      client:
+        prefer-ip: true
+      url: http://localhost:6400
+dataSource:
+  ds_wuweixiong:
+    driverClassName: com.mysql.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/wuweixiong?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&useSSL=false&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false
+    username: root
+    password: root
+
+druid:
+  initialSize: 1
+  minIdle: 1
+  maxActive: 20
+  maxWait: 3000
+  useUnfairLock: true
+  timeBetweenEvictionRunsMillis: 60000
+  minEvictableIdleTimeMillis: 300000
+  poolPreparedStatements: false
+  maxPoolPreparedStatementPerConnectionSize: 50
+  validationQuery: SELECT 1
+  testWhileIdle: true
+  testOnBorrow: false
+  testOnReturn: false
+  profileEnable: true
+  allow: 10.30.26.43
+

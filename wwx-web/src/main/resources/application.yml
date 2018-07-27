@@ -1,0 +1,36 @@
+server:
+  port: 8112
+spring:
+  profiles:
+    active: development
+  application:
+    name: wwx-web
+
+info:
+    build:
+      arstifact: "@project.artifactId@"
+      name: "@project.name@"
+      description: "@project.description@"
+      version: "@project.version@"
+      spring-boot-version: "1.5.7.RELEASE"
+      spring-cloud-version: "Dalston.SR4"
+
+management:
+  security:
+    enabled: false
+# HEALTH INDICATORS (previously health.*)
+  health:
+    mail:
+      enabled: false
+    mongo:
+      enabled: false
+    rabbit:
+      enabled: false
+    redis:
+      enabled: false
+    solr:
+      enabled: false
+    elasticsearch:
+      enabled: false
+    db:
+      enabled: false
