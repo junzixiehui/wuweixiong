@@ -13,6 +13,8 @@
     <packaging>pom</packaging>
     <modules>
         <module>junxie-utils</module>
+        <module>orm-core</module>
+        <module>orm-jdbc</module>
     </modules>
 
 

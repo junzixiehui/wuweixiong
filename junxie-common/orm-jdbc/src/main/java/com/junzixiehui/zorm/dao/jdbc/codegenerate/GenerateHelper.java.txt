@@ -1,0 +1,560 @@
+package com.junzixiehui.rent.common.orm.codegenerate;
+
+import com.google.common.base.Joiner;
+import com.google.common.collect.Lists;
+import com.junzixiehui.rent.common.orm.OrmFrameEnum;
+import com.junzixiehui.rent.common.orm.exception.DaoException;
+import com.junzixiehui.rent.common.orm.exception.DaoExceptionTranslator;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.support.JdbcUtils;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.sql.*;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * 根据数据库表生成对应的mapper、dao、entity
+ *
+ * @Author zhoutao
+ * @Date 2016/9/18
+ */
+public class GenerateHelper {
+    //某个模块的包名绝对路径
+    private String modulePackagePath;
+    //某个模块的包名
+    private String modulePackageName;
+    //生成代码对应的表名
+    private String tableName;
+    //生成代码对应的数据库名称
+    private String dbName;
+    //单表包含的所有列
+    private List<PropertyAndColumn> propertyAndColumnList;
+    private JdbcTemplate jdbcTemplate;
+
+    public GenerateHelper(String modulePackagePath, String modulePackageName, String tableName, JdbcTemplate jdbcTemplate) {
+        this.modulePackagePath = modulePackagePath;
+        this.modulePackageName = modulePackageName;
+        this.tableName = tableName;
+        this.jdbcTemplate = jdbcTemplate;
+        setPropertyAndColumns(tableName);
+        File dir = new File(modulePackagePath);
+        if (!dir.exists()) {
+            dir.mkdir();
+        }
+        dir = new File(modulePackagePath + "/entity");
+        if (!dir.exists()) {
+            dir.mkdir();
+        }
+        dir = new File(modulePackagePath + "/dao");
+        if (!dir.exists()) {
+            dir.mkdir();
+        }
+    }
+
+    /**
+     * 驼峰法转换
+     *
+     * @param tableName
+     * @return
+     */
+    private String camelTableName(String tableName) {
+        if (tableName == null) {
+            return "";
+        } else {
+            StringBuilder sb = new StringBuilder();
+            String[] underlines = tableName.split("_");
+            //表前缀跳过
+            for (int i = 1; i < underlines.length; i++) {
+                String n = underlines[i].toLowerCase(Locale.US);
+                //首字母大写
+                sb.append(n.substring(0, 1).toUpperCase(Locale.US));
+                sb.append(n.substring(1));
+            }
+            return sb.toString();
+        }
+    }
+
+    private String camelColumnName(String columnName) {
+        if (columnName == null) {
+            return "";
+        } else if (!columnName.contains("_")) {
+            StringBuilder sb = new StringBuilder();
+            String n = columnName.toLowerCase(Locale.US);
+            //首字母大写
+            sb.append(n.substring(0, 1).toUpperCase(Locale.US));
+            sb.append(n.substring(1));
+            return sb.toString();
+        } else {
+            StringBuilder sb = new StringBuilder();
+            String[] underlines = columnName.split("_");
+            //表前缀跳过
+            for (int i = 0; i < underlines.length; i++) {
+                String n = underlines[i].toLowerCase(Locale.US);
+                //首字母大写
+                sb.append(n.substring(0, 1).toUpperCase(Locale.US));
+                sb.append(n.substring(1));
+            }
+            return sb.toString();
+        }
+    }
+
+    private void setPropertyAndColumns(String tableName) {
+        Connection connection = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            connection = this.jdbcTemplate.getDataSource().getConnection();
+            DatabaseMetaData databaseMetaData = connection.getMetaData();
+            this.dbName = databaseMetaData.getDatabaseProductName().toLowerCase();
+            ps = connection.prepareStatement("select * from " + tableName);
+            rs = ps.executeQuery();
+            ResultSetMetaData rsme = rs.getMetaData();
+            propertyAndColumnList = Lists.newArrayList();
+            int columnCount = rsme.getColumnCount();
+            for (int i = 1; i <= columnCount; i++) {
+                PropertyAndColumn pac = new PropertyAndColumn();
+                pac.setColumn(rsme.getColumnName(i));
+                pac.setProperty(getPropertyNameByColumnName(pac.getColumn()));
+                if (pac.getColumn().equals("id")) {
+                    pac.setPrimary(true);
+                    pac.setAutoIncrement(rsme.isAutoIncrement(i));
+                }
+                pac.setColumnType(rsme.getColumnType(i));
+                pac.setColumnTypeName(rsme.getColumnTypeName(i));
+
+                if (pac.getColumnType() == Types.BIGINT) {
+                    pac.setPropertyType("long");
+                } else if (pac.getColumnType() == Types.VARCHAR ||
+                        pac.getColumnType() == Types.CHAR ||
+                        pac.getColumnType() == Types.LONGVARCHAR) {
+                    pac.setPropertyType("String");
+                } else if (pac.getColumnType() == Types.INTEGER ||
+                        pac.getColumnType() == Types.SMALLINT ||
+                        pac.getColumnType() == Types.TINYINT ||
+                        pac.getColumnType() == Types.BIT) {
+                    pac.setPropertyType("int");
+                } else if (pac.getColumnType() == Types.DOUBLE ||
+                        pac.getColumnType() == Types.FLOAT ||
+                        pac.getColumnType() == Types.DECIMAL) {
+                    pac.setPropertyType("double");
+                } else {
+                    throw new DaoException("不支持的SQL类型：" + pac);
+                }
+                System.out.println(pac);
+
+                propertyAndColumnList.add(pac);
+            }
+        } catch (SQLException e) {
+            throw DaoExceptionTranslator.translate(e);
+        } finally {
+            JdbcUtils.closeResultSet(rs);
+            JdbcUtils.closeStatement(ps);
+            JdbcUtils.closeConnection(connection);
+        }
+    }
+
+    private String getDaoNameByTableName(String tableName) {
+        return camelTableName(tableName) + "Dao";
+    }
+
+    private String getEntityNameByTableName(String tableName) {
+        return camelTableName(tableName) + "Entity";
+    }
+
+    //输出mapper文件名绝对路径
+    private String getMapperXmlNameByTableName(String tableName) {
+        return modulePackagePath + "/entity/" + getEntityNameByTableName(tableName) + "Mapper.xml";
+    }
+
+    private String getPropertyNameByColumnName(String columnName) {
+        String pn = camelColumnName(columnName);
+        //变量名用小驼峰法,首字母小写
+        return pn.substring(0, 1).toLowerCase(Locale.US) + pn.substring(1);
+    }
+
+    private void generateMapper() throws Exception {
+        String mapperFileName = getMapperXmlNameByTableName(tableName);
+        File file = new File(mapperFileName);
+        if (file.exists()) {
+            return;
+        }
+
+        FileWriter fw = null;
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+            sb.append("<!DOCTYPE mapper PUBLIC \"-//mybatis.org//DTD Mapper 3.0//EN\" \"http://mybatis.org/dtd/mybatis-3-mapper.dtd\">\n");
+            sb.append("<mapper namespace=\"" + modulePackageName + ".dao." + getDaoNameByTableName(tableName) + "\">\n");
+            sb.append("\n");
+            sb.append("\t<resultMap id=\"allResultMap\" type=\"" + modulePackageName + ".entity." + getEntityNameByTableName(tableName) + "\">\n");
+            //allResultMap
+            for (PropertyAndColumn pac : propertyAndColumnList) {
+                if (pac.isPrimary()) {
+                    sb.append("\t\t<id property=\"id\" column=\"id\" />\n");
+                    continue;
+                }
+                sb.append("\t\t<result property=\"" + pac.getProperty() + "\" column=\"" + pac.getColumn() + "\" />\n");
+            }
+            sb.append("\t</resultMap>\n");
+            sb.append("\n");
+            //allColumns
+            sb.append("\t<sql id=\"allColumns\">");
+            List<String> l = Lists.newArrayList();
+            for (PropertyAndColumn pac : propertyAndColumnList) {
+                l.add(pac.getColumn());
+            }
+            sb.append(Joiner.on(",").join(l));
+            sb.append("</sql>\n");
+            sb.append("\n");
+
+            //insert
+            sb.append("\t<insert id=\"insert\" parameterType=\"" + modulePackageName + ".entity." + getEntityNameByTableName(tableName) + "\">\n");
+            for (PropertyAndColumn pac : propertyAndColumnList) {
+                if (pac.isPrimary() && pac.isAutoIncrement()) {
+                    sb.append("\t\t<!-- mysql设置了自增长的表,插入数据后，获取id -->\n" +
+                            "\t\t<selectKey keyProperty=\"id\" resultType=\"long\" order=\"AFTER\" >\n" +
+                            "\t\t\tSELECT LAST_INSERT_ID() as id\n" +
+                            "\t\t</selectKey>\n");
+                    break;
+                }
+            }
+            sb.append("\t\tINSERT INTO " + this.tableName + " (<include refid=\"allColumns\" />) VALUES (");
+            List<String> ll = Lists.newArrayList();
+            for (PropertyAndColumn pac : propertyAndColumnList) {
+                ll.add("#{" + pac.getProperty() + "}");
+            }
+            sb.append(Joiner.on(",").join(ll));
+            sb.append(")\n");
+            sb.append("</insert>\n");
+            sb.append("\n");
+            //通用查询、删除、修改
+            sb.append("<!-- 通用查询、删除、修改  开始 -->\n" +
+                    "\t<sql id=\"sql_select\">\n" +
+                    "\t\t<foreach item=\"field\" collection=\"fields\" separator=\",\">\n" +
+                    "\t\t\t${field}\n" +
+                    "\t\t</foreach>\n" +
+                    "\t</sql>\n" +
+                    "\n" +
+                    "\t<sql id=\"sql_where\">\n" +
+                    "\t\t<if test='criterias!=null and criterias.size() > 0'>\n" +
+                    "\t\t\t<where>\n" +
+                    "\t\t\t\t<foreach item=\"criteria\" collection=\"criterias\">\n" +
+                    "\t\t\t\t\t<if test='criteria.valueType == \"no\"'>\n" +
+                    "\t\t\t\t\t\tAND ${criteria.key} ${criteria.operator}\n" +
+                    "\t\t\t\t\t</if>\n" +
+                    "\t\t\t\t\t<if test='criteria.valueType == \"single\"'>\n" +
+                    "\t\t\t\t\t\tAND ${criteria.key} ${criteria.operator} #{criteria.value}\n" +
+                    "\t\t\t\t\t</if>\n" +
+                    "\t\t\t\t\t<if test='criteria.valueType == \"list\"'>\n" +
+                    "\t\t\t\t\t\tAND ${criteria.key} ${criteria.operator}\n" +
+                    "\t\t\t\t\t\t<foreach item=\"item\" collection=\"criteria.value\" open=\"(\" separator=\",\" close=\")\">\n" +
+                    "\t\t\t\t\t\t\t#{item}\n" +
+                    "\t\t\t\t\t\t</foreach>\n" +
+                    "\t\t\t\t\t</if>\n" +
+                    "\t\t\t\t</foreach>\n" +
+                    "\t\t\t</where>\n" +
+                    "\t\t</if>\n" +
+                    "\t</sql>\n" +
+                    "\n" +
+                    "\t<sql id=\"sql_orderBy\">\n" +
+                    "\t\t<if test='orderBys!=null and orderBys.size() > 0'>\n" +
+                    "\t\t\tORDER BY\n" +
+                    "\t\t\t<foreach item=\"orderBy\" collection=\"orderBys\" separator=\",\">\n" +
+                    "\t\t\t\t${orderBy.key} ${orderBy.direction}\n" +
+                    "\t\t\t</foreach>\n" +
+                    "\t\t</if>\n" +
+                    "\t</sql>\n" +
+                    "\n" +
+                    "\t<sql id=\"sql_limit\">\n" +
+                    "\t\t<if test='offset!=null and limit!=null'>\n" +
+                    "\t\t\tLIMIT ${offset},${limit}\n" +
+                    "\t\t</if>\n" +
+                    "\t</sql>\n" +
+                    "\n" +
+                    "\t<select id=\"commonSelectId\" resultMap=\"allResultMap\" parameterType=\"map\">\n" +
+                    "\t\tSELECT<include refid=\"sql_select\"/>FROM " + tableName + "\n" +
+                    "\t\t<include refid=\"sql_where\"/>\n" +
+                    "\t\t<include refid=\"sql_orderBy\"/>\n" +
+                    "\t\t<include refid=\"sql_limit\"/>\n" +
+                    "\t</select>\n" +
+                    "\n" +
+                    "\t<select id=\"commonCountId\" resultType=\"java.lang.Long\" parameterType=\"map\">\n" +
+                    "\t\tSELECT count(1) FROM " + tableName + "\n" +
+                    "\t\t<include refid=\"sql_where\"/>\n" +
+                    "\t</select>\n" +
+                    "\n" +
+                    "\t<update id=\"commonUpdateId\" parameterType=\"map\">\n" +
+                    "\t\tUPDATE " + tableName + "\n" +
+                    "\t\t<set>\n" +
+                    "\t\t\t<foreach item=\"k\" collection=\"setParams.keys\" separator=\",\">\n" +
+                    "\t\t\t\t<if test='setParams[k] != null'>\n" +
+                    "\t\t\t\t\t${k} = #{setParams[${k}]}\n" +
+                    "\t\t\t\t</if>\n" +
+                    "\t\t\t</foreach>\n" +
+                    "\t\t</set>\n" +
+                    "\t\t<include refid=\"sql_where\"/>\n" +
+                    "\t</update>\n" +
+                    "\n" +
+                    "\t<delete id=\"commonDeleteId\" parameterType=\"map\">\n" +
+                    "\t\tDELETE FROM " + tableName + " <include refid=\"sql_where\"/>\n" +
+                    "\t</delete>\n" +
+                    "\t<!-- 通用查询、删除、修改  结束 -->\n");
+            sb.append("</mapper>\n");
+
+            fw = new FileWriter(mapperFileName, false);
+            fw.write(sb.toString());
+            fw.flush();
+        } finally {
+            if (fw != null) {
+                fw.close();
+            }
+        }
+    }
+
+    private void generateEntity(OrmFrameEnum ormEnum) throws Exception {
+        String entityFileName = modulePackagePath + "/entity/" + getEntityNameByTableName(tableName) + ".java";
+        File file = new File(entityFileName);
+        if (file.exists()) {
+            return;
+        }
+        FileWriter fw = null;
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("package " + modulePackageName + ".entity;\n");
+            sb.append("\n");
+            sb.append("import com.google.common.base.MoreObjects;\n");
+            sb.append("import com.junzixiehui.rent.common.orm.entity.IdEntity;\n");
+            sb.append("import com.junzixiehui.rent.common.orm.entity.BaseEntity;\n");
+            if (ormEnum == OrmFrameEnum.JDBC_TEMPLATE) {
+                sb.append("import com.junzixiehui.rent.common.orm.dao.annotation.*;\n");
+            }
+            sb.append("import lombok.Getter;\n");
+            sb.append("import lombok.Setter;\n");
+            sb.append("\n");
+            sb.append("@Getter\n");
+            sb.append("@Setter\n");
+            if (ormEnum == OrmFrameEnum.JDBC_TEMPLATE) {
+                sb.append("@Table(value = \"" + tableName + "\")\n");
+            }
+            //同时包含以下4个字段可以继承自BaseEntity
+            List<String> baseEntityColumnList = Lists.newArrayList("create_code", "create_time", "last_modify_code", "last_modify_time");
+            boolean create_code = false;
+            boolean create_time = false;
+            boolean last_modify_code = false;
+            boolean last_modify_time = false;
+            for (PropertyAndColumn pac : propertyAndColumnList) {
+                String column = pac.getColumn();
+                if (column.equals("create_code")) {
+                    create_code = true;
+                }
+                if (column.equals("create_time")) {
+                    create_time = true;
+                }
+                if (column.equals("last_modify_code")) {
+                    last_modify_code = true;
+                }
+                if (column.equals("last_modify_time")) {
+                    last_modify_time = true;
+                }
+            }
+            boolean extendBaseEntity = create_code && create_time && last_modify_code && last_modify_time;
+
+            if (extendBaseEntity) {
+                sb.append("public class " + getEntityNameByTableName(tableName) + " extends BaseEntity {\n");
+            } else {
+                sb.append("public class " + getEntityNameByTableName(tableName) + " extends IdEntity {\n");
+            }
+            sb.append("\n");
+            //字段
+            for (PropertyAndColumn pac : propertyAndColumnList) {
+                if (pac.isPrimary()) {
+                    continue;
+                }
+                if (extendBaseEntity && baseEntityColumnList.contains(pac.getColumn())) {
+                    continue;
+                }
+                if (ormEnum == OrmFrameEnum.JDBC_TEMPLATE) {
+                    sb.append("\t@Column(value = \"" + pac.getColumn() + "\")\n");
+                }
+                sb.append("\tprivate " + pac.getPropertyType() + " " + pac.getProperty() + ";\n");
+            }
+            sb.append("\n");
+            //get set
+//            for (PropertyAndColumn pac : propertyAndColumnList) {
+//                if(pac.isPrimary()){
+//                    continue;
+//                }
+//
+//                sb.append("\tpublic " + pac.getPropertyType() + " get" + camelColumnName(pac.getColumn()) + "() {\n");
+//                sb.append("\t\treturn " + pac.getProperty() + ";\n");
+//                sb.append("\t}\n");
+//                sb.append("\n");
+//
+//                sb.append("\tpublic void set" + camelColumnName(pac.getColumn()) + "(" + pac.getPropertyType() + " " + pac.getProperty() + ") {\n");
+//                sb.append("\t\tthis." + pac.getProperty() + " = " + pac.getProperty() + ";\n");
+//                sb.append("\t}\n");
+//                sb.append("\n");
+//            }
+//            sb.append("\n");
+            //tostring
+            sb.append("\t@Override\n");
+            sb.append("\tpublic String toString() {\n");
+            sb.append("\t\treturn MoreObjects.toStringHelper(this)\n");
+            for (PropertyAndColumn pac : propertyAndColumnList) {
+                sb.append("\t\t\t.add(\"" + pac.getProperty() + "\", " + pac.getProperty() + ")\n");
+            }
+            sb.append("\t\t\t.toString();\n");
+            sb.append("\t}\n");
+
+            sb.append("}");
+
+            fw = new FileWriter(entityFileName, false);
+            fw.write(sb.toString());
+            fw.flush();
+        } finally {
+            if (fw != null) {
+                fw.close();
+            }
+        }
+
+    }
+
+    private void generateDao(OrmFrameEnum ormEnum) throws IOException {
+        FileWriter fw = null;
+        try {
+            String entityFileName = modulePackagePath + "/dao/" + getDaoNameByTableName(tableName) + ".java";
+            File file = new File(entityFileName);
+            if (file.exists()) {
+                return;
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("package " + modulePackageName + ".dao;\n");
+            sb.append("\n");
+            sb.append("import " + modulePackageName + ".entity." + getEntityNameByTableName(tableName) + ";\n");
+            sb.append("import com.junzixiehui.rent.common.orm.DialectEnum;\n");
+            sb.append("import com.junzixiehui.rent.common.orm.OrmFrameEnum;\n");
+            sb.append("import com.junzixiehui.rent.common.orm.dao.BaseDao;\n");
+            sb.append("import com.junzixiehui.rent.common.orm.dao.annotation.*;\n");
+            sb.append("import org.springframework.stereotype.Repository;\n");
+            sb.append("\n");
+            sb.append("@Repository\n");
+            if (ormEnum == OrmFrameEnum.JDBC_TEMPLATE) {
+                sb.append("@DaoDescription(ormFrame = OrmFrameEnum.JDBC_TEMPLATE,\n");
+                if (this.dbName.equals("mysql")) {
+                    sb.append("\t\t\t\tdialect = DialectEnum.MYSQL,\n");
+                } else if (this.dbName.equals("oracle")) {
+                    sb.append("\t\t\t\tdialect = DialectEnum.ORACLE,\n");
+                }
+                sb.append("\t\t\t\tmasterDBAccessorBeanName = \"masterJdbcTemplate\",\n");
+                sb.append("\t\t\t\tslaveDBAccessorBeanNames = {\"slaveJdbcTemplate\"})\n");
+            } else if (ormEnum == OrmFrameEnum.MYBATIS) {
+                sb.append("@DaoDescription(ormFrame = OrmFrameEnum.MYBATIS,\n");
+                if (this.dbName.equals("mysql")) {
+                    sb.append("\t\t\t\tdialect = DialectEnum.MYSQL,\n");
+                } else if (this.dbName.equals("oracle")) {
+                    sb.append("\t\t\t\tdialect = DialectEnum.ORACLE,\n");
+                }
+                sb.append("\t\t\t\tmasterDBAccessorBeanName = \"masterSqlSessionTemplate\",\n");
+                sb.append("\t\t\t\tslaveDBAccessorBeanNames = {\"slaveSqlSessionTemplate\"})\n");
+            }
+            sb.append("public class " + getDaoNameByTableName(tableName) + " extends BaseDao<" + getEntityNameByTableName(tableName) + "> {\n");
+            sb.append("}");
+
+            fw = new FileWriter(entityFileName, false);
+            fw.write(sb.toString());
+            fw.flush();
+        } finally {
+            if (fw != null) {
+                fw.close();
+            }
+        }
+    }
+
+    /**
+     * 生成基于mybatis或jdbc的dao、entity代码
+     */
+    public void genterate(OrmFrameEnum ormEnum) {
+        try {
+            System.out.println("开始生成表名：" + this.tableName + "对应的文件：");
+            if (ormEnum == OrmFrameEnum.MYBATIS) {
+                System.out.println("开始生成mapper");
+                this.generateMapper();
+            }
+            System.out.println("开始生成entity");
+            this.generateEntity(ormEnum);
+            System.out.println("开始生成dao");
+            this.generateDao(ormEnum);
+        } catch (Exception e) {
+            throw DaoExceptionTranslator.translate(e);
+        }
+    }
+
+    static class PropertyAndColumn {
+        private String property;
+        private String propertyType;
+        private String column;
+        private int columnType;
+        private String columnTypeName;
+        private boolean isPrimary;
+        private boolean isAutoIncrement;
+
+        public String getProperty() {
+            return property;
+        }
+
+        public void setProperty(String property) {
+            this.property = property;
+        }
+
+        public String getPropertyType() {
+            return propertyType;
+        }
+
+        public void setPropertyType(String propertyType) {
+            this.propertyType = propertyType;
+        }
+
+        public String getColumn() {
+            return column;
+        }
+
+        public void setColumn(String column) {
+            this.column = column;
+        }
+
+        public int getColumnType() {
+            return columnType;
+        }
+
+        public void setColumnType(int columnType) {
+            this.columnType = columnType;
+        }
+
+        public String getColumnTypeName() {
+            return columnTypeName;
+        }
+
+        public void setColumnTypeName(String columnTypeName) {
+            this.columnTypeName = columnTypeName;
+        }
+
+        public boolean isPrimary() {
+            return isPrimary;
+        }
+
+        public void setPrimary(boolean primary) {
+            isPrimary = primary;
+        }
+
+        public boolean isAutoIncrement() {
+            return isAutoIncrement;
+        }
+
+        public void setAutoIncrement(boolean autoIncrement) {
+            isAutoIncrement = autoIncrement;
+        }
+    }
+}

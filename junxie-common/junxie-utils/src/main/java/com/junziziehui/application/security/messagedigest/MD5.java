@@ -9,7 +9,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 /**
  * <b>信息摘要算法MD5</b><br>
  *
- * @author ziroom
+ * @author
  * @thread-safe
  * @since 2015-10-31
  */
