@@ -4,7 +4,7 @@ Configuration:
   properties:
     property:
         name: log.path
-        value: /mnt/logs/aftersale-order-center
+        value: /mnt/logs/wuweixiong
   Appenders:
     RollingFile:
      - name: error_file
@@ -17,7 +17,7 @@ Configuration:
            interval: 1
            modulate: true
      - name: bus_file
-       fileName: ${log.path}/bus.log
+       fileName: ${log.path}/business.log
        filePattern: "${log.path}/bus_%d{yyyy-MM-dd}.log"
        PatternLayout:
          Pattern: "%-d{yyyy-MM-dd HH:mm:ss} - [%p] [%C{1}:%L %M] %m%n"

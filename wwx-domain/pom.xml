@@ -12,4 +12,18 @@
     <artifactId>wwx-domain</artifactId>
 
 
+
+
+
+    <dependencies>
+
+        <dependency>
+            <groupId>com.junzixiehui</groupId>
+            <artifactId>wwx-common</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
+
+    </dependencies>
+
+
 </project>

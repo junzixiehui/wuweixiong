@@ -1,15 +1,19 @@
-package com.junzixiehui.wuweixiong.web.common;
+package com.junzixiehui.wwx.web.common;
 
 import com.junzixiehui.application.api.Req;
 import com.junzixiehui.application.api.Resp;
+import com.junzixiehui.wwx.infrastructure.tunnel.example.TestExampleDao;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.annotation.Resource;
 
 /**
  * <p>Description: </p>
@@ -23,11 +27,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class TestController {
 
 
+	@Resource
+	private TestExampleDao testExampleDao;
+
 
 	@ApiOperation(value="测试1", notes="test")
-	@ApiImplicitParam(name = "req", value = "test", required = true, dataType = "Req")
-	@RequestMapping(value="/test", method=RequestMethod.POST)
-	public Resp postUser(@RequestBody Req req) {
+	@ApiImplicitParam(name = "req", value = "test", required = false, dataType = "Req")
+	@RequestMapping(value="/test", method=RequestMethod.GET)
+	public Resp postUser() {
+
+		testExampleDao.findAllList();
+
 		return Resp.success();
 	}
 

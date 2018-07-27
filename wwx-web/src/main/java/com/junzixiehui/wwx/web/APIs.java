@@ -1,4 +1,4 @@
-package com.junzixiehui.wuweixiong.web;
+package com.junzixiehui.wwx.web;
 
 /**
  * <p>Description: 业务运营后台API</p>

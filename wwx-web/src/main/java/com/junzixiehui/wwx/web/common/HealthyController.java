@@ -1,6 +1,6 @@
-package com.junzixiehui.wuweixiong.web.common;
+package com.junzixiehui.wwx.web.common;
 
-import com.junzixiehui.wuweixiong.web.APIs;
+import com.junzixiehui.wwx.web.APIs;
 import com.junzixiehui.application.api.Resp;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;

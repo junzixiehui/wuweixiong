@@ -18,7 +18,6 @@
             <groupId>com.junzixiehui</groupId>
             <artifactId>orm-core</artifactId>
             <version>0.0.1-SNAPSHOT</version>
-            <scope>compile</scope>
         </dependency>
 
         <dependency>

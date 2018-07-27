@@ -11,6 +11,11 @@ dataSource:
      username: root
      password: root
 
+  ds_wuweixiong_slave:
+    driverClassName: com.mysql.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/wuweixiong?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&useSSL=false&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false
+    username: root
+    password: root
 
 druid:
   initialSize: 1
